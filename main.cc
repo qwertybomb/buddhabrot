@@ -77,7 +77,7 @@ static void generate(std::vector<heatmap_t>& image, heatmap_t& max_value)
     auto map = [](auto x, auto in_min, auto in_max, auto out_min, auto out_max)
     {
         return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-    };a c++ program the generates buddhabrot output
+    };
 
     std::random_device rd;
     std::mt19937 engine {rd()};
