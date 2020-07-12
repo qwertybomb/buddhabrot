@@ -2,9 +2,9 @@ CC = g++
 
 FLAGS = -Ofast -march=native -mtune=native -fopenmp -std=c++20
 
-LIBS += -lpng
+LIBS = -lpng
 
-INCLUDE += -I./png++/
+INCLUDE = -I./png++/
 
 EXE = main
 
