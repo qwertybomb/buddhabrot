@@ -6,7 +6,7 @@
 #include <omp.h>
 
 /* png headers */
-#include "png++/png.hpp"
+#include <png.hpp>
 
 
 typedef float v8sf __attribute__ ((vector_size(32)));
@@ -77,7 +77,7 @@ static void generate(std::vector<heatmap_t>& image, heatmap_t& max_value)
     auto map = [](auto x, auto in_min, auto in_max, auto out_min, auto out_max)
     {
         return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-    };
+    };a c++ program the generates buddhabrot output
 
     std::random_device rd;
     std::mt19937 engine {rd()};
@@ -127,11 +127,12 @@ static void generate(std::vector<heatmap_t>& image, heatmap_t& max_value)
 
 static png::rgb_pixel get_color(heatmap_t value, heatmap_t max_value)
 {
-    png::byte color = (value/double(max_value) * 255.0 + 0.55555 /* round to nearest */);
+    png::byte color =  std::min(value/double(max_value) * 2 * 255.0 + 0.55555 /* round to nearest */, 255.0);
     return png::rgb_pixel(color, color, color);
 }
 
-int main() {
+int main()
+{
     std::vector<heatmap_t> image(width*height);
     heatmap_t max_value = 0;
     #pragma omp parallel
