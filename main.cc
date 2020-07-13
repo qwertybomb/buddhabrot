@@ -13,7 +13,7 @@ typedef int32_t v8si __attribute__ ((vector_size(32)));
 typedef uint32_t heatmap_t;
 
 constexpr float min_r = -2.0;
-constexpr float max_r = 0.8;
+constexpr float max_r = 0.828;
 constexpr float min_i = -1.414;
 constexpr float max_i = 1.414;
 
@@ -22,13 +22,14 @@ constexpr v8sf max_r_v8sf = {max_r, max_r, max_r, max_r, max_r, max_r, max_r, ma
 constexpr v8sf min_i_v8sf = {min_i, min_i, min_i, min_i, min_i, min_i, min_i, min_i};
 constexpr v8sf max_i_v8sf = {max_i, max_i, max_i, max_i, max_i, max_i, max_i, max_i};
 
-constexpr int32_t width = 750;
-constexpr int32_t height = 750;
+constexpr int32_t width = 640*2;
+constexpr int32_t height = 480*2;
 constexpr int32_t red_iterations = 800;
 constexpr int32_t green_iterations = 250;
 constexpr int32_t blue_iterations = 50;
 constexpr int32_t max_iterations = std::max({red_iterations, blue_iterations, green_iterations});
-static uint64_t total_samples = 30000*10000;
+constexpr double j = NAN;
+static uint64_t total_samples = 10000*10000;
 static uint64_t individual_samples = total_samples/(omp_get_max_threads() * 8);
 
 static void mandelbrot(v8sf cx,v8sf cy, std::array<v8sf[2], max_iterations>& orbit, v8si& iterations)
@@ -101,6 +102,15 @@ static void generate(std::vector<heatmap_t>& image, heatmap_t& red_max_value, he
         /* add points in orbit to heatmap */
         for(int32_t i = 0; i < max_iteration;++i, iterations-=1)
         {
+            if constexpr(width > height)
+            {
+                orbit[i][1] *= width / float(height);
+            }
+            else
+            {
+                orbit[i][0] *= height / float(width);
+            }
+
             /* map the point to pixel */
             v8sf row = map(orbit[i][0], min_r_v8sf, max_r_v8sf,
                     (v8sf){0, 0, 0, 0, 0, 0, 0, 0},
@@ -149,9 +159,9 @@ static void generate(std::vector<heatmap_t>& image, heatmap_t& red_max_value, he
 
 static png::rgb_pixel get_color(heatmap_t* value,const heatmap_t* max_values)
 {
-    png::byte red =  std::min(*value/double(max_values[0]) * 1.2 * 255.0 + 0.55555 /* round to nearest */, 255.0);
-    png::byte green =  std::min(*(value+width*height)/double(max_values[1]) * 1.2 * 255.0 + 0.55555 /* round to nearest */, 255.0);
-    png::byte blue =  std::min(*(value+width*height*2)/double(max_values[2]) * 1.2 * 255.0 + 0.55555 /* round to nearest */, 255.0);
+    png::byte red =  std::min(*value/double(max_values[0]) * 2 * 255.0 + 0.55555 /* round to nearest */, 255.0);
+    png::byte green =  std::min(*(value+width*height)/double(max_values[1]) * 2 * 255.0 + 0.55555 /* round to nearest */, 255.0);
+    png::byte blue =  std::min(*(value+width*height*2)/double(max_values[2]) * 2 * 255.0 + 0.55555 /* round to nearest */, 255.0);
     return png::rgb_pixel{red, green, blue};
 }
 
@@ -169,7 +179,7 @@ int main()
     {
         for (uint32_t j = 0; j < height; ++j)
         {
-            png_image.set_pixel(j,i, get_color(&image[j * width + i],
+            png_image.set_pixel(i,j, get_color(&image[j * width + i],
                                                std::initializer_list<heatmap_t>{red_max_value, green_max_value, blue_max_value}.begin()));
         }
     }
