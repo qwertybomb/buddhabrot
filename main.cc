@@ -1,5 +1,5 @@
-#include <iostream>
 #include <random>
+#include <chrono>
 #include <array>
 #include <vector>
 #include <cstdint>
@@ -7,7 +7,6 @@
 
 /* png headers */
 #include <png.hpp>
-
 
 typedef float v8sf __attribute__ ((vector_size(32)));
 typedef int32_t v8si __attribute__ ((vector_size(32)));
@@ -25,9 +24,12 @@ constexpr v8sf max_i_v8sf = {max_i, max_i, max_i, max_i, max_i, max_i, max_i, ma
 
 constexpr int32_t width = 750;
 constexpr int32_t height = 750;
-constexpr int32_t max_iterations = 500;
-constexpr uint64_t total_samples = 50000000;
-constexpr uint64_t individual_samples = total_samples/64;
+constexpr int32_t red_iterations = 800;
+constexpr int32_t green_iterations = 250;
+constexpr int32_t blue_iterations = 50;
+constexpr int32_t max_iterations = std::max({red_iterations, blue_iterations, green_iterations});
+static uint64_t total_samples = 30000*10000;
+static uint64_t individual_samples = total_samples/(omp_get_max_threads() * 8);
 
 static void mandelbrot(v8sf cx,v8sf cy, std::array<v8sf[2], max_iterations>& orbit, v8si& iterations)
 {
@@ -68,10 +70,10 @@ static void mandelbrot(v8sf cx,v8sf cy, std::array<v8sf[2], max_iterations>& orb
         active = active !=0 ? (zx*zx*zy*zy < 4) : active;
     }
     /* if point escaped don't plot it */
-    iterations = iterations >= max_iterations ? iterations^iterations : iterations;
+    iterations = iterations >= max_iterations ? 0 : iterations;
 }
 
-static void generate(std::vector<heatmap_t>& image, heatmap_t& max_value)
+static void generate(std::vector<heatmap_t>& image, heatmap_t& red_max_value, heatmap_t& green_max_value, heatmap_t& blue_max_value)
 {
 
     auto map = [](auto x, auto in_min, auto in_max, auto out_min, auto out_max)
@@ -110,43 +112,76 @@ static void generate(std::vector<heatmap_t>& image, heatmap_t& max_value)
                                   height -1 , height - 1 , height - 1, height -1});
             /* check if the point did escape */
             v8si out_of_bounds = row < 0 || row >= width || col < 0 || col >= height || iterations <= 0;
-            heatmap_t pixel1 = !out_of_bounds[0] ? ++image[uint32_t(col[0])*width+row[0]] : 0;
-            heatmap_t pixel2 = !out_of_bounds[1] ? ++image[uint32_t(col[1])*width+row[1]] : 0;
-            heatmap_t pixel3 = !out_of_bounds[2] ? ++image[uint32_t(col[2])*width+row[2]] : 0;
-            heatmap_t pixel4 = !out_of_bounds[3] ? ++image[uint32_t(col[3])*width+row[3]] : 0;
-            heatmap_t pixel5 = !out_of_bounds[4] ? ++image[uint32_t(col[4])*width+row[4]] : 0;
-            heatmap_t pixel6 = !out_of_bounds[5] ? ++image[uint32_t(col[5])*width+row[5]] : 0;
-            heatmap_t pixel7 = !out_of_bounds[6] ? ++image[uint32_t(col[6])*width+row[6]] : 0;
-            heatmap_t pixel8 = !out_of_bounds[7] ? ++image[uint32_t(col[7])*width+row[7]] : 0;
-            max_value = std::max({max_value, pixel1, pixel2, pixel3, pixel4,
+            heatmap_t pixel1 = !out_of_bounds[0] && i < red_iterations ? ++image[uint32_t(col[0])*width+row[0]] : 0;
+            heatmap_t pixel2 = !out_of_bounds[1] && i < red_iterations ? ++image[uint32_t(col[1])*width+row[1]] : 0;
+            heatmap_t pixel3 = !out_of_bounds[2] && i < red_iterations ? ++image[uint32_t(col[2])*width+row[2]] : 0;
+            heatmap_t pixel4 = !out_of_bounds[3] && i < red_iterations ? ++image[uint32_t(col[3])*width+row[3]] : 0;
+            heatmap_t pixel5 = !out_of_bounds[4] && i < red_iterations ? ++image[uint32_t(col[4])*width+row[4]] : 0;
+            heatmap_t pixel6 = !out_of_bounds[5] && i < red_iterations ? ++image[uint32_t(col[5])*width+row[5]] : 0;
+            heatmap_t pixel7 = !out_of_bounds[6] && i < red_iterations ? ++image[uint32_t(col[6])*width+row[6]] : 0;
+            heatmap_t pixel8 = !out_of_bounds[7] && i < red_iterations ? ++image[uint32_t(col[7])*width+row[7]] : 0;
+            red_max_value = std::max({red_max_value, pixel1, pixel2, pixel3, pixel4,
                                   pixel5, pixel6, pixel7, pixel8});
+            pixel1 = !out_of_bounds[0] && i < green_iterations ? ++image[uint32_t(col[0])*width+row[0]+width*height] : 0;
+            pixel2 = !out_of_bounds[1] && i < green_iterations ? ++image[uint32_t(col[1])*width+row[1]+width*height] : 0;
+            pixel3 = !out_of_bounds[2] && i < green_iterations ? ++image[uint32_t(col[2])*width+row[2]+width*height] : 0;
+            pixel4 = !out_of_bounds[3] && i < green_iterations ? ++image[uint32_t(col[3])*width+row[3]+width*height] : 0;
+            pixel5 = !out_of_bounds[4] && i < green_iterations ? ++image[uint32_t(col[4])*width+row[4]+width*height] : 0;
+            pixel6 = !out_of_bounds[5] && i < green_iterations ? ++image[uint32_t(col[5])*width+row[5]+width*height] : 0;
+            pixel7 = !out_of_bounds[6] && i < green_iterations ? ++image[uint32_t(col[6])*width+row[6]+width*height] : 0;
+            pixel8 = !out_of_bounds[7] && i < green_iterations ? ++image[uint32_t(col[7])*width+row[7]+width*height] : 0;
+            green_max_value = std::max({green_max_value, pixel1, pixel2, pixel3, pixel4,
+                                      pixel5, pixel6, pixel7, pixel8});
+            pixel1 = !out_of_bounds[0] && i < blue_iterations ? ++image[uint32_t(col[0])*width+row[0]+width*height*2] : 0;
+            pixel2 = !out_of_bounds[1] && i < blue_iterations ? ++image[uint32_t(col[1])*width+row[1]+width*height*2] : 0;
+            pixel3 = !out_of_bounds[2] && i < blue_iterations ? ++image[uint32_t(col[2])*width+row[2]+width*height*2] : 0;
+            pixel4 = !out_of_bounds[3] && i < blue_iterations ? ++image[uint32_t(col[3])*width+row[3]+width*height*2] : 0;
+            pixel5 = !out_of_bounds[4] && i < blue_iterations ? ++image[uint32_t(col[4])*width+row[4]+width*height*2] : 0;
+            pixel6 = !out_of_bounds[5] && i < blue_iterations ? ++image[uint32_t(col[5])*width+row[5]+width*height*2] : 0;
+            pixel7 = !out_of_bounds[6] && i < blue_iterations ? ++image[uint32_t(col[6])*width+row[6]+width*height*2] : 0;
+            pixel8 = !out_of_bounds[7] && i < blue_iterations ? ++image[uint32_t(col[7])*width+row[7]+width*height*2] : 0;
+            blue_max_value = std::max({blue_max_value, pixel1, pixel2, pixel3, pixel4,
+                                        pixel5, pixel6, pixel7, pixel8});
         }
     }
 
 }
 
-static png::rgb_pixel get_color(heatmap_t value, heatmap_t max_value)
+static png::rgb_pixel get_color(heatmap_t* value,const heatmap_t* max_values)
 {
-    png::byte color =  std::min(value/double(max_value) * 2 * 255.0 + 0.55555 /* round to nearest */, 255.0);
-    return png::rgb_pixel(color, color, color);
+    png::byte red =  std::min(*value/double(max_values[0]) * 1.2 * 255.0 + 0.55555 /* round to nearest */, 255.0);
+    png::byte green =  std::min(*(value+width*height)/double(max_values[1]) * 1.2 * 255.0 + 0.55555 /* round to nearest */, 255.0);
+    png::byte blue =  std::min(*(value+width*height*2)/double(max_values[2]) * 1.2 * 255.0 + 0.55555 /* round to nearest */, 255.0);
+    return png::rgb_pixel{red, green, blue};
 }
 
 int main()
 {
-    std::vector<heatmap_t> image(width*height);
-    heatmap_t max_value = 0;
-    #pragma omp parallel
-    generate(image, max_value);
+    auto t1 = std::chrono::high_resolution_clock::now();
 
+    std::vector<heatmap_t> image(width*height*3);
+    heatmap_t red_max_value = 0, green_max_value = 0, blue_max_value = 0;
+    #pragma omp parallel
+    generate(image, red_max_value, green_max_value, blue_max_value);
     /* output png image */
     png::image<png::rgb_pixel> png_image(width, height);
     for(uint32_t i = 0; i < width; ++i)
     {
         for (uint32_t j = 0; j < height; ++j)
         {
-            png_image.set_pixel(j,i, get_color(image[j * width + i], max_value));
+            png_image.set_pixel(j,i, get_color(&image[j * width + i],
+                                               std::initializer_list<heatmap_t>{red_max_value, green_max_value, blue_max_value}.begin()));
         }
     }
     png_image.write("output.png");
+
+
+    auto t2 = std::chrono::high_resolution_clock::now();
+    auto duration =
+            std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+    double timeTook = duration.count();
+    std::cout << "It took " << timeTook
+              << ((timeTook == 1.0) ? " second" : "seconds") << "\n";
+
     return 0;
 }
