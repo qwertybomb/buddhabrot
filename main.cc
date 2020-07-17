@@ -3,6 +3,7 @@
 #include <array>
 #include <vector>
 #include <cstdint>
+#include <unordered_map>
 #include <omp.h>
 
 /* png headers */
@@ -22,15 +23,14 @@ constexpr v8sf max_r_v8sf = {max_r, max_r, max_r, max_r, max_r, max_r, max_r, ma
 constexpr v8sf min_i_v8sf = {min_i, min_i, min_i, min_i, min_i, min_i, min_i, min_i};
 constexpr v8sf max_i_v8sf = {max_i, max_i, max_i, max_i, max_i, max_i, max_i, max_i};
 
-constexpr int32_t width = 640*2;
-constexpr int32_t height = 480*2;
+constexpr int32_t width = 640*3;
+constexpr int32_t height = 480*3;
 constexpr int32_t red_iterations = 800;
 constexpr int32_t green_iterations = 250;
 constexpr int32_t blue_iterations = 50;
 constexpr int32_t max_iterations = std::max({red_iterations, blue_iterations, green_iterations});
-constexpr double j = NAN;
-static uint64_t total_samples = 10000*10000;
-static uint64_t individual_samples = total_samples/(omp_get_max_threads() * 8);
+static size_t total_samples = size_t(10000)*size_t(10000);
+static size_t individual_samples = total_samples/(omp_get_max_threads() * 8);
 
 static void mandelbrot(v8sf cx,v8sf cy, std::array<v8sf[2], max_iterations>& orbit, v8si& iterations)
 {
@@ -39,13 +39,18 @@ static void mandelbrot(v8sf cx,v8sf cy, std::array<v8sf[2], max_iterations>& orb
         v8sf c2 = cx * cx + cy * cy;
         v8sf d[2] = {cx + 1, cx};
         v8sf h1 = 256 * c2 * c2 - 96 * c2 + 32 * cx - 3;
-        v8sf h2 = 16 * (d[0]*d[0]+d[1]*d[1]) - 1.0;
+        v8sf h2 = 16 * (d[0]*d[0]+d[1]*d[1]) - 1;
         return h1 >= 0 && h2 >= 0;
+    };
+    auto compare = [](v8sf difference) {
+        return difference > -0.00001f && difference < 0.00001f;
     };
     v8sf zx = {0};
     v8sf zy = {0};
     v8sf zx_temp = {0};
-    iterations = good(cx, cy) ? 0 : max_iterations;
+    v8sf old_zx = {0};
+    v8sf old_zy = {0};
+    iterations = good(cx, cy) ? iterations : max_iterations;
     int32_t orbit_counter = 0;
     v8si active = {1,1,1,1,1,1,1,1};
     for(;iterations[0] < max_iterations &&
@@ -58,17 +63,20 @@ static void mandelbrot(v8sf cx,v8sf cy, std::array<v8sf[2], max_iterations>& orb
          iterations[7] < max_iterations
 
          && (active[0] != 0 || active[1] != 0
-         || active[2] != 0 || active[3] != 0
-         || active[4] != 0 || active[5] != 0
-         || active[5] != 0 || active[6] != 0
-         || active[7] != 0);orbit_counter++, iterations+=-active)
+             || active[2] != 0 || active[3] != 0
+             || active[4] != 0 || active[5] != 0
+             || active[5] != 0 || active[6] != 0
+             || active[7] != 0);orbit_counter++, iterations+=-active)
     {
+        old_zx  = (iterations&(iterations-1)) == 0 ? zx : old_zx;
+        old_zy  = (iterations&(iterations-1)) == 0 ? zy : old_zy;
         zx_temp = active != 0 ? zx_temp*zx_temp-zy*zy+cx : zx_temp;
         zy = active != 0 ? zx * zy * 2 + cy : zy;
         zx = zx_temp;
         orbit[orbit_counter][0] = zx;
         orbit[orbit_counter][1] = zy;
-        active = active !=0 ? (zx*zx*zy*zy < 4) : active;
+        active = active != 0 ? (zx*zx*zy*zy < 4) || compare(old_zx-zx)
+                || compare(old_zy-zy) : active;
     }
     /* if point escaped don't plot it */
     iterations = iterations >= max_iterations ? 0 : iterations;
@@ -88,9 +96,9 @@ static void generate(std::vector<heatmap_t>& image, heatmap_t& red_max_value, he
     std::uniform_real_distribution<float> dist_i(min_i, max_i);
 
     std::array<v8sf [2], max_iterations> orbit;
-    v8si iterations;
+    v8si iterations = {0};
 
-    for(size_t i = 0; i < individual_samples; ++i)
+    for(size_t sample_index = 0; sample_index < individual_samples; ++sample_index)
     {
         v8sf cx = {dist_r(engine), dist_r(engine), dist_r(engine), dist_r(engine),
                    dist_r(engine), dist_r(engine), dist_r(engine), dist_r(engine)};
@@ -113,9 +121,9 @@ static void generate(std::vector<heatmap_t>& image, heatmap_t& red_max_value, he
 
             /* map the point to pixel */
             v8sf row = map(orbit[i][0], min_r_v8sf, max_r_v8sf,
-                    (v8sf){0, 0, 0, 0, 0, 0, 0, 0},
-                    (v8sf){width -1 , width - 1 , width - 1, width -1,
-                           width -1 , width - 1 , width - 1, width -1});
+                           (v8sf){0, 0, 0, 0, 0, 0, 0, 0},
+                           (v8sf){width -1 , width - 1 , width - 1, width -1,
+                                  width -1 , width - 1 , width - 1, width -1});
             v8sf col = map(orbit[i][1], min_i_v8sf, max_i_v8sf,
                            (v8sf){0, 0, 0, 0, 0, 0, 0, 0},
                            (v8sf){height -1 , height - 1 , height - 1, height -1,
@@ -131,7 +139,7 @@ static void generate(std::vector<heatmap_t>& image, heatmap_t& red_max_value, he
             heatmap_t pixel7 = !out_of_bounds[6] && i < red_iterations ? ++image[uint32_t(col[6])*width+row[6]] : 0;
             heatmap_t pixel8 = !out_of_bounds[7] && i < red_iterations ? ++image[uint32_t(col[7])*width+row[7]] : 0;
             red_max_value = std::max({red_max_value, pixel1, pixel2, pixel3, pixel4,
-                                  pixel5, pixel6, pixel7, pixel8});
+                                      pixel5, pixel6, pixel7, pixel8});
             pixel1 = !out_of_bounds[0] && i < green_iterations ? ++image[uint32_t(col[0])*width+row[0]+width*height] : 0;
             pixel2 = !out_of_bounds[1] && i < green_iterations ? ++image[uint32_t(col[1])*width+row[1]+width*height] : 0;
             pixel3 = !out_of_bounds[2] && i < green_iterations ? ++image[uint32_t(col[2])*width+row[2]+width*height] : 0;
@@ -141,7 +149,7 @@ static void generate(std::vector<heatmap_t>& image, heatmap_t& red_max_value, he
             pixel7 = !out_of_bounds[6] && i < green_iterations ? ++image[uint32_t(col[6])*width+row[6]+width*height] : 0;
             pixel8 = !out_of_bounds[7] && i < green_iterations ? ++image[uint32_t(col[7])*width+row[7]+width*height] : 0;
             green_max_value = std::max({green_max_value, pixel1, pixel2, pixel3, pixel4,
-                                      pixel5, pixel6, pixel7, pixel8});
+                                        pixel5, pixel6, pixel7, pixel8});
             pixel1 = !out_of_bounds[0] && i < blue_iterations ? ++image[uint32_t(col[0])*width+row[0]+width*height*2] : 0;
             pixel2 = !out_of_bounds[1] && i < blue_iterations ? ++image[uint32_t(col[1])*width+row[1]+width*height*2] : 0;
             pixel3 = !out_of_bounds[2] && i < blue_iterations ? ++image[uint32_t(col[2])*width+row[2]+width*height*2] : 0;
@@ -151,8 +159,9 @@ static void generate(std::vector<heatmap_t>& image, heatmap_t& red_max_value, he
             pixel7 = !out_of_bounds[6] && i < blue_iterations ? ++image[uint32_t(col[6])*width+row[6]+width*height*2] : 0;
             pixel8 = !out_of_bounds[7] && i < blue_iterations ? ++image[uint32_t(col[7])*width+row[7]+width*height*2] : 0;
             blue_max_value = std::max({blue_max_value, pixel1, pixel2, pixel3, pixel4,
-                                        pixel5, pixel6, pixel7, pixel8});
+                                       pixel5, pixel6, pixel7, pixel8});
         }
+        iterations = (v8si){0,0,0,0,0,0,0,0};
     }
 
 }
