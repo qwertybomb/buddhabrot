@@ -13,18 +13,19 @@ typedef float v8sf __attribute__ ((vector_size(32)));
 typedef int32_t v8si __attribute__ ((vector_size(32)));
 typedef uint32_t heatmap_t;
 
-constexpr float min_r = -2.0;
-constexpr float max_r = 0.828;
-constexpr float min_i = -1.414;
-constexpr float max_i = 1.414;
+constexpr float scale = 1.0;
+constexpr float min_r = -2.0 * scale;
+constexpr float max_r = 0.828 * scale;
+constexpr float min_i = -1.414 * scale;
+constexpr float max_i = 1.414 * scale;
 
 constexpr v8sf min_r_v8sf = {min_r, min_r, min_r, min_r, min_r, min_r, min_r, min_r};
 constexpr v8sf max_r_v8sf = {max_r, max_r, max_r, max_r, max_r, max_r, max_r, max_r};
 constexpr v8sf min_i_v8sf = {min_i, min_i, min_i, min_i, min_i, min_i, min_i, min_i};
 constexpr v8sf max_i_v8sf = {max_i, max_i, max_i, max_i, max_i, max_i, max_i, max_i};
 
-constexpr int32_t width = 640*3;
-constexpr int32_t height = 480*3;
+constexpr int32_t width = 640 * 2;
+constexpr int32_t height = 480 * 2;
 constexpr int32_t red_iterations = 800;
 constexpr int32_t green_iterations = 250;
 constexpr int32_t blue_iterations = 50;
@@ -32,7 +33,7 @@ constexpr int32_t max_iterations = std::max({red_iterations, blue_iterations, gr
 static size_t total_samples = size_t(10000)*size_t(10000);
 static size_t individual_samples = total_samples/(omp_get_max_threads() * 8);
 
-static void mandelbrot(v8sf cx,v8sf cy, std::array<v8sf[2], max_iterations>& orbit, v8si& iterations)
+static void mandelbrot(v8sf cx, v8sf cy, std::array<v8sf[2], max_iterations>& orbit, v8si& iterations)
 {
     auto good = [](v8sf cx, v8sf cy) {
         // test H1 and H2
@@ -42,14 +43,9 @@ static void mandelbrot(v8sf cx,v8sf cy, std::array<v8sf[2], max_iterations>& orb
         v8sf h2 = 16 * (d[0]*d[0]+d[1]*d[1]) - 1;
         return h1 >= 0 && h2 >= 0;
     };
-    auto compare = [](v8sf difference) {
-        return difference > -0.00001f && difference < 0.00001f;
-    };
     v8sf zx = {0};
     v8sf zy = {0};
     v8sf zx_temp = {0};
-    v8sf old_zx = {0};
-    v8sf old_zy = {0};
     iterations = good(cx, cy) ? iterations : max_iterations;
     int32_t orbit_counter = 0;
     v8si active = {1,1,1,1,1,1,1,1};
@@ -68,15 +64,12 @@ static void mandelbrot(v8sf cx,v8sf cy, std::array<v8sf[2], max_iterations>& orb
              || active[5] != 0 || active[6] != 0
              || active[7] != 0);orbit_counter++, iterations+=-active)
     {
-        old_zx  = (iterations&(iterations-1)) == 0 ? zx : old_zx;
-        old_zy  = (iterations&(iterations-1)) == 0 ? zy : old_zy;
         zx_temp = active != 0 ? zx_temp*zx_temp-zy*zy+cx : zx_temp;
         zy = active != 0 ? zx * zy * 2 + cy : zy;
         zx = zx_temp;
         orbit[orbit_counter][0] = zx;
         orbit[orbit_counter][1] = zy;
-        active = active != 0 ? (zx*zx*zy*zy < 4) || compare(old_zx-zx)
-                || compare(old_zy-zy) : active;
+        active = active != 0 ? (zx*zx*zy*zy < 4) : active;
     }
     /* if point escaped don't plot it */
     iterations = iterations >= max_iterations ? 0 : iterations;
