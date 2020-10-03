@@ -3,7 +3,6 @@
 #include <array>
 #include <vector>
 #include <cstdint>
-#include <unordered_map>
 #include <omp.h>
 
 /* png headers */
@@ -24,10 +23,10 @@ constexpr v8sf max_r_v8sf = {max_r, max_r, max_r, max_r, max_r, max_r, max_r, ma
 constexpr v8sf min_i_v8sf = {min_i, min_i, min_i, min_i, min_i, min_i, min_i, min_i};
 constexpr v8sf max_i_v8sf = {max_i, max_i, max_i, max_i, max_i, max_i, max_i, max_i};
 
-constexpr int32_t width = 640 * 2;
-constexpr int32_t height = 480 * 2;
+constexpr int32_t width = 640 * 1;
+constexpr int32_t height = 480 * 1;
 constexpr int32_t red_iterations = 800;
-constexpr int32_t green_iterations = 250;
+constexpr int32_t green_iterations = 200;
 constexpr int32_t blue_iterations = 50;
 constexpr int32_t max_iterations = std::max({red_iterations, blue_iterations, green_iterations});
 static size_t total_samples = size_t(10000)*size_t(10000);
@@ -69,7 +68,7 @@ static void mandelbrot(v8sf cx, v8sf cy, std::array<v8sf[2], max_iterations>& or
         zx = zx_temp;
         orbit[orbit_counter][0] = zx;
         orbit[orbit_counter][1] = zy;
-        active = active != 0 ? (zx*zx*zy*zy < 4) : active;
+        active = active != 0 ? __builtin_convertvector(zx*zx*zy*zy < 4, v8si) : active;
     }
     /* if point escaped don't plot it */
     iterations = iterations >= max_iterations ? 0 : iterations;
@@ -170,7 +169,7 @@ static png::rgb_pixel get_color(heatmap_t* value,const heatmap_t* max_values)
 int main()
 {
     auto t1 = std::chrono::high_resolution_clock::now();
-
+    
     std::vector<heatmap_t> image(width*height*3);
     heatmap_t red_max_value = 0, green_max_value = 0, blue_max_value = 0;
     #pragma omp parallel
