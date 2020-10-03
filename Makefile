@@ -1,6 +1,6 @@
 CC = g++
 
-FLAGS = -Ofast -march=native -mtune=native -fopenmp -std=c++20
+FLAGS = -s -Ofast -march=native -fopenmp -std=gnu++20
 
 LIBS = -lpng
 
