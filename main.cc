@@ -3,6 +3,7 @@
 #include <array>
 #include <vector>
 #include <cstdint>
+#include <cstring>
 #include <iostream>
 #include <omp.h>
 
