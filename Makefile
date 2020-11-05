@@ -1,4 +1,4 @@
-CC = clang++
+CC = g++
 
 FLAGS = -s -Ofast -march=native -fopenmp -std=gnu++20
 
