@@ -47,13 +47,15 @@ namespace
             return h1 >= 0 && h2 >= 0;
         };
 
-        v8sf zx = { };
-        v8sf zy = { };
-        v8sf zx_temp = { 0 };
+        v8sf zx = {};
+        v8sf zy = {};
+        v8sf zx_temp = {};
         iterations = good(cx, cy) ? iterations : max_iterations;
         std::int32_t orbit_counter = 0;
         v8si active = {1, 1, 1, 1, 1, 1, 1, 1};
-        for (; iterations[0] < max_iterations &&
+        for (;
+            orbit_counter < max_iterations &&
+            iterations[0] < max_iterations &&
             iterations[1] < max_iterations &&
             iterations[2] < max_iterations &&
             iterations[3] < max_iterations &&
@@ -94,7 +96,6 @@ namespace
         std::uniform_real_distribution<float> dist_i(min_i, max_i);
 
         std::array<v8sf[2], max_iterations> orbit;
-        v8si iterations = {};
 
         for (std::uint64_t sample_index = 0; sample_index < individual_samples; ++sample_index)
         {
@@ -102,6 +103,7 @@ namespace
                        dist_r(engine), dist_r(engine), dist_r(engine), dist_r(engine) };
             v8sf cy = { dist_i(engine), dist_i(engine), dist_i(engine), dist_i(engine),
                        dist_i(engine), dist_i(engine), dist_i(engine), dist_i(engine) };
+            v8si iterations = {};
             mandelbrot(cx, cy, orbit, iterations);
             std::int32_t max_iteration = std::max({ iterations[0], iterations[1], iterations[2], iterations[3],
                                               iterations[4], iterations[5], iterations[6], iterations[7] });
@@ -164,7 +166,6 @@ namespace
                 blue_max_value = std::max({ blue_max_value, pixel1, pixel2, pixel3, pixel4,
                                            pixel5, pixel6, pixel7, pixel8 });
             }
-            iterations = (v8si){};
         }
 
     }
