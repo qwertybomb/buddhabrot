@@ -84,7 +84,6 @@ namespace
 
     void generate(std::vector<heatmap_t> &image, heatmap_t &red_max_value, heatmap_t &green_max_value, heatmap_t &blue_max_value)
     {
-
         auto map = [](auto x, auto in_min, auto in_max, auto out_min, auto out_max)
         {
             return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
@@ -95,7 +94,7 @@ namespace
         std::uniform_real_distribution<float> dist_r(min_r, max_r);
         std::uniform_real_distribution<float> dist_i(min_i, max_i);
 
-        std::array<v8sf[2], max_iterations> orbit;
+        alignas(32) std::array<v8sf[2], max_iterations> orbit;
 
         for (std::uint64_t sample_index = 0; sample_index < individual_samples; ++sample_index)
         {
